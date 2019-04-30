@@ -10,8 +10,9 @@
             [memefactory.server.contract.meme-factory :as meme-factory]
             [memefactory.server.contract.registry :as registry]
             [memefactory.server.contract.meme-token :as meme-token]
-            [memefactory.tests.smart-contracts.utils :as test-utils]
-            [print.foo :include-macros true :refer [look]]))
+            [cljs-promises.async :refer-macros [<?]]
+            [print.foo :include-macros true :refer [look]]
+            [clojure.core.async :as async]))
 
 (def sample-meta-hash-1 "QmZJWGiKnqhmuuUNfcryiumVHCKGvVNZWdy7xtd3XCkQJH")
 (def sample-meta-hash-2 "JmZJWGiKnqhmuuUNfcryiumVHCKGvVNZWdy7xtd3XCkQJ9")
@@ -29,15 +30,13 @@
 (defn create-meme
   "Creates a meme and returns its registry entry"
   [& [creator-addr deposit total-supply meta-hash :as args]]
-  (-> (meme-factory/approve-and-create-meme {:meta-hash meta-hash
-                                             :total-supply total-supply
-                                             :amount deposit}
-                                            {:from creator-addr})
-      look
-      (registry/meme-constructed-event-in-tx [:meme-registry :meme-registry-fwd])
-      look
-      :args :registry-entry
-      ))
+  (async/go
+    (let [tx (<? (meme-factory/approve-and-create-meme {:meta-hash meta-hash
+                                                              :total-supply total-supply
+                                                              :amount deposit}
+                                                       {:from creator-addr}))]
+      (-> (registry/meme-constructed-event-in-tx [:meme-registry :meme-registry-fwd] tx)
+          :args :registry-entry))))
 
 #_(deftest approve-and-create-meme-test
   (let [[creator-addr] (web3-eth/accounts @web3)

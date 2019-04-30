@@ -72,7 +72,11 @@
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [print-foo-cljs "2.0.3"]
                  [re-frame "0.10.5"]
-                 [cljs-node-io "1.1.2"]]
+                 [cljs-node-io "1.1.2"]
+
+                 ;; only for tests
+                 [org.clojure/core.async "0.4.490"]
+                 [jamesmacaulay/cljs-promises "0.1.0"]]
 
   :exclusions [funcool/bide
                express-graphql

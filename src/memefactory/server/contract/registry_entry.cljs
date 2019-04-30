@@ -8,9 +8,8 @@
    [memefactory.server.contract.dank-token :as dank-token]
    [memefactory.server.contract.minime-token :as minime-token]
    [memefactory.server.macros :refer [promise->]]
-   [memefactory.shared.contract.registry-entry :refer [parse-status parse-load-registry-entry parse-load-registry-entry-challenge parse-load-vote vote-option->num]]
-   [print.foo :refer [look] :include-macros true]
-   ))
+   [memefactory.shared.contract.registry-entry :refer [parse-status parse-load-registry-entry parse-load-vote vote-option->num]]
+   [print.foo :refer [look] :include-macros true]))
 
 (defn registry [contract-addr]
   (contract-call [:meme contract-addr] :registry))
@@ -63,3 +62,9 @@
 
 (defn claim-challenge-reward [contract-addr & [opts]]
   (contract-call (instance :meme contract-addr) :claim-challenge-reward [] (merge {:gas 500000} opts)))
+
+(defn load-registry-entry [contract-addr & [opts]]
+  (contract-call (instance :meme contract-addr) :load [] (merge {:gas 500000} opts)))
+
+(defn load-registry-entry-vote [contract-addr voter-addr & [opts]]
+  (contract-call (instance :meme contract-addr) :load-vote [voter-addr] (merge {:gas 500000} opts)))

@@ -32,7 +32,7 @@
 ;; MemeAuctionFactory ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
 
-(deftest transfer-multi-and-start-auction-test
+#_(deftest transfer-multi-and-start-auction-test
   (let [[creator-addr non-creator-addr] (web3-eth/accounts @web3)
         [max-total-supply deposit challenge-period-duration max-auction-duration]
         (->> (eternal-db/get-uint-values :meme-registry-db [:max-total-supply :deposit
@@ -108,7 +108,7 @@
 ;; MemeAuction ;;
 ;;;;;;;;;;;;;;;;;
 
-(deftest meme-auction-buy-test
+#_(deftest meme-auction-buy-test
   ;; cut collector is addr 2, check before fixture creation ath the top
   (let [[creator-addr buyer-addr cut-collector-addr] (web3-eth/accounts @web3)
         [max-total-supply deposit challenge-period-duration max-auction-duration meme-auction-cut]
@@ -165,7 +165,7 @@
           (is (= 0 (bn/number (bn/- creator-balance-after creator-expected-balance))))
           (is (= 0 (bn/number (bn/- buyer-balance-after buyer-expected-balance)))))))))
 
-(deftest meme-auction-cancel-test
+#_(deftest meme-auction-cancel-test
   ;; deployer uses first account as cut collector if no account given
   (let [[creator-addr other-addr] (web3-eth/accounts @web3)
         [max-total-supply deposit challenge-period-duration max-auction-duration]

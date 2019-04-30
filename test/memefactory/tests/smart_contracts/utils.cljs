@@ -9,7 +9,8 @@
    [memefactory.shared.smart-contracts :refer [smart-contracts]]
    [district.server.smart-contracts :refer [instance]]
    [mount.core :as mount]
-   [cljs.core.async :as async :refer-macros [go]]))
+   [cljs.core.async :as async :refer-macros [go]]
+   [clojure.core.async :as async]))
 
 (defn now []
   (from-long (* (:timestamp (web3-eth/get-block @web3 (web3-eth/block-number @web3))) 1000)))
@@ -19,6 +20,7 @@
     (let [args {:web3 {:port 8549}
                 :smart-contracts {:contracts-var #'smart-contracts
                                   :auto-mining? true}
+                :time-source :blockchain
                 :ranks-cache {:ttl (t/in-millis (t/minutes 60))}}]
       (-> (mount/with-args args)
           (mount/only [#'district.server.web3/web3
