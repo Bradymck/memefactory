@@ -47,9 +47,11 @@
         (assoc :reg-entry/address reg-entry-addr)
         (update :reg-entry/version bn/number)
         (update :reg-entry/deposit wei->eth-number)
-        (update :reg-entry/challenge-period-end bn/number)
-        (update :reg-entry/reveal-period-end bn/number)
-        (update :reg-entry/claimed-reward-on bn/number)))))
+        (update :challenge/commit-period-end bn/number)
+        (update :challenge/reveal-period-end bn/number)
+        (update :challenge/reward-pool bn/number)
+        (update :challenge/meta-hash web3/to-ascii)
+        (update :challenge/claimed-reward-on bn/number)))))
 
 
 (defn parse-vote-option [vote-option]

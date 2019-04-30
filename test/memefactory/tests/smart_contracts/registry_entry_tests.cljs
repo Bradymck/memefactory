@@ -13,10 +13,11 @@
             [memefactory.server.contract.registry-entry :as registry-entry]
             [memefactory.shared.contract.registry-entry :refer [vote-option->num vote-options parse-load-registry-entry parse-load-vote]]
             [memefactory.tests.smart-contracts.meme-tests :refer [create-meme]]
-            [district.server.smart-contracts :refer [contract-call]]
+            [district.server.smart-contracts :refer [contract-call wait-for-tx-receipt]]
             [print.foo :include-macros true :refer [look]]
             [clojure.core.async :as async :refer [<!]]
-            [cljs-promises.async :refer-macros [<?]]))
+            [cljs-promises.async :refer-macros [<?]]
+            [memefactory.tests.smart-contracts.utils :refer [tx-error?]]))
 
 #_(use-fixtures
   :once {:before (test-utils/create-before-fixture {:use-n-account-as-cut-collector 2
@@ -26,6 +27,8 @@
 
 (def sample-meta-hash-1 "QmZJWGiKnqhmuuUNfcryiumVHCKGvVNZWdy7xtd3XCkQJH")
 (def sample-meta-hash-2 "JmZJWGiKnqhmuuUNfcryiumVHCKGvVNZWdy7xtd3XCkQJ9")
+
+
 
 (defn load-registry-entry [address]
   (async/go
@@ -51,8 +54,6 @@
                                            (map bn/number))
            registry-entry (<! (create-meme creator-addr deposit max-total-supply sample-meta-hash-1))]
 
-       (println "Created registry entry " registry-entry)
-
        (testing "Can create RegistryEntry (as Meme) with valid parameters"
          (is registry-entry))
 
@@ -66,8 +67,8 @@
            (is (= (bn/number (<? (dank-token/balance-of (:reg-entry/address entry))))
                   deposit ))))
 
-       (testing "Construct method of cannot be called twice"
-         (is (thrown? js/Error (<? (contract-call :meme :construct [creator-addr 1 sample-meta-hash-1 max-total-supply]))))))
+       #_(testing "Construct method of cannot be called twice"
+         (is (<? (tx-error? (<? (contract-call :meme :construct [creator-addr deposit max-total-supply sample-meta-hash-1])))))))
      (done))))
 
 (deftest approve-and-create-challenge-test
@@ -89,43 +90,49 @@
                                                                    {:amount deposit
                                                                     :meta-hash sample-meta-hash-1}
                                                                    {:from challenger-addr})
-           {:keys [timestamp]} (->> (registry/challenge-created-event-in-tx [:meme-registry :meme-registry-fwd] (<? (challenge)))
+           chall-tx (<? (challenge))
+           {:keys [timestamp]} (->> chall-tx
+                                    (registry/challenge-created-event-in-tx [:meme-registry :meme-registry-fwd])
                                     :block-number
                                     (web3-eth/get-block @web3))
            entry (<! (load-registry-entry meme-entry-1))]
 
-      (testing "Can create challenge under valid condidtions"
-        (is entry))
+       (testing "Can create challenge under valid condidtions"
+         (is entry))
 
-      (testing "Check properties of created challenge:"
-        (testing "RegistryToken deposit should be transferred from challenger to RegistryEntry contract"
-          (is (= (bn/number (<? (dank-token/balance-of challenger-addr)))
-                 (- challenger-init-balance deposit)))
-          (is (= (bn/number (<? (dank-token/balance-of (:reg-entry/address entry))))
-                 (* 2 deposit))))
+       (testing "Check properties of created challenge:"
+         (testing "RegistryToken deposit should be transferred from challenger to RegistryEntry contract"
+           (is (= (bn/number (<? (dank-token/balance-of challenger-addr)))
+                  (- challenger-init-balance deposit)))
+           (is (= (bn/number (<? (dank-token/balance-of (:reg-entry/address entry))))
+                  (* 2 deposit))))
 
-        (is (= challenger-addr (:challenge/challenger entry)))
-        (is (= vote-quorum (bn/number (:challenge/vote-quorum entry))))
-        (is (= (:challenge/commit-period-end entry)
-               (+ (bn/number timestamp) commit-period-duration)))
-        (is (= (:challenge/reveal-period-end entry)
-               (+ (bn/number timestamp) commit-period-duration reveal-period-duration)))
-        (is (= (str (bn// (bn/* (web3/to-big-number deposit) (- 100 challenge-dispensation))
-                          100))
-               (web3/to-wei (:challenge/reward-pool entry) :ether)))
-        (is (= sample-meta-hash-1 (:challenge/meta-hash entry))))
+         (is (= challenger-addr (:challenge/challenger entry)))
+         (is (= vote-quorum (bn/number (:challenge/vote-quorum entry))))
+         ;; We can't test time related thing with ganache because of
+         ;; https://github.com/trufflesuite/ganache-core/issues/111
 
-      (testing "Challenge cannot be created if RegistryEntry was already challenged"
-        (is (thrown? js/Error (<? (challenge)))))
+         #_(is (= (:challenge/commit-period-end entry)
+                  (+ (bn/number timestamp) commit-period-duration)))
+         #_(is (= (:challenge/reveal-period-end entry)
+                  (+ (bn/number timestamp) commit-period-duration reveal-period-duration)))
+         (is (= (bn/number
+                 (bn// (bn/* (web3/to-big-number deposit) (- 100 challenge-dispensation))
+                       100))
+                (:challenge/reward-pool entry)))
+         (is (= sample-meta-hash-1 (:challenge/meta-hash entry))))
 
-      (testing "Challenge cannot be created outside challenge period"
-        (let [registry-entry (<! (create-meme creator-addr deposit max-total-supply sample-meta-hash-2))]
-          (web3-evm/increase-time! @web3 [(inc challenge-period-duration)])
-          (is (thrown? js/Error (<? (-> registry-entry
-                                        (registry-entry/approve-and-create-challenge
-                                         {:amount deposit
-                                          :meta-hash sample-meta-hash-2})))))))
-      (done)))))
+       (testing "Challenge cannot be created if RegistryEntry was already challenged"
+         (is (<? (tx-error? (<? (challenge))))))
+
+       (testing "Challenge cannot be created outside challenge period"
+         (let [registry-entry (<! (create-meme creator-addr deposit max-total-supply sample-meta-hash-2))]
+           (web3-evm/increase-time! @web3 [(inc challenge-period-duration)])
+           (is (<? (tx-error? (<? (-> registry-entry
+                                      (registry-entry/approve-and-create-challenge
+                                       {:amount deposit
+                                        :meta-hash sample-meta-hash-2}))))))))
+       (done)))))
 
 (deftest approve-and-commit-vote-test
   (test/async
@@ -172,12 +179,12 @@
                      vote-amount))))
 
        (testing "Vote cannot be committed outside vote commit period"
-         (web3-evm/increase-time! @web3 [(look (inc commit-period-duration))])
-         (is (thrown? js/Error (<? (registry-entry/approve-and-commit-vote registry-entry
-                                                                           {:amount vote-amount
-                                                                            :salt salt
-                                                                            :vote-option vote-option}
-                                                                           {:from voter-addr2})))))
+         (web3-evm/increase-time! @web3 [(inc commit-period-duration)])
+         (is (<? (tx-error? (<? (registry-entry/approve-and-commit-vote registry-entry
+                                                                        {:amount vote-amount
+                                                                         :salt salt
+                                                                         :vote-option vote-option}
+                                                                        {:from voter-addr2}))))))
        (done)))))
 
 (deftest approve-and-commit-vote-rejection-tests
@@ -210,11 +217,11 @@
                                                          {:from voter-addr}))]
 
        (testing "Can't make second vote"
-         (is (thrown? js/Error (<? (registry-entry/approve-and-commit-vote registry-entry
-                                                                           {:amount (<? (dank-token/balance-of voter-addr))
-                                                                            :salt salt
-                                                                            :vote-option :vote.option/vote-against}
-                                                                           {:from voter-addr})))))
+         (is (<? (tx-error? (<? (registry-entry/approve-and-commit-vote registry-entry
+                                                                        {:amount (<? (dank-token/balance-of voter-addr))
+                                                                         :salt salt
+                                                                         :vote-option :vote.option/vote-against}
+                                                                        {:from voter-addr}))))))
        (done)))))
 
 (deftest reveal-vote-test
@@ -257,21 +264,19 @@
            (is (bn/= (<? (dank-token/balance-of voter-addr2)) (bn/- voter-addr2-init-balance vote-amount) )))
 
          (testing "Vote cannot be revealed outside vote reveal period"
-           (is (thrown? js/Error
-                        (<? (registry-entry/reveal-vote registry-entry
-                                                        {:address voter-addr
-                                                         :vote-option :vote.option/vote-for
-                                                         :salt salt}
-                                                        {:from voter-addr})))))
+           (is (<? (tx-error? (<? (registry-entry/reveal-vote registry-entry
+                                                              {:address voter-addr
+                                                               :vote-option :vote.option/vote-for
+                                                               :salt salt}
+                                                              {:from voter-addr}))))))
          (web3-evm/increase-time! @web3 [(inc commit-period-duration)])
 
          (testing "Vote cannot be revealed with incorrect salt"
-           (is (thrown? js/Error
-                        (<? (registry-entry/reveal-vote registry-entry
-                                                        {:address voter-addr
-                                                         :vote-option :vote.option/vote-for
-                                                         :salt (str salt "x")}
-                                                        {:from voter-addr})))))
+           (is (<? (tx-error? (<? (registry-entry/reveal-vote registry-entry
+                                                              {:address voter-addr
+                                                               :vote-option :vote.option/vote-for
+                                                               :salt (str salt "x")}
+                                                              {:from voter-addr}))))))
 
          (let [reveal-vote1 #(registry-entry/reveal-vote registry-entry
                                                          {:address voter-addr
@@ -306,7 +311,7 @@
                        (+ vote-amount (bn/number voter-addr2-init-balance)))))
 
            (testing "Vote cannot be revealed twice"
-             (is (thrown? js/Error (<? (reveal-vote1))))))
+             (is (<? (tx-error? (<? (reveal-vote1)))))))
          (done)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -486,5 +491,5 @@
              (is (= vote-amount (bn/number (bn/- balance-after-reclaim balance-before-reclaim)))))
 
            (testing "Cannot be called twice"
-             (is (thrown? js/Error (reclaim-vote-deposit)))))
+             (is (<? (tx-error? (<? (reclaim-vote-deposit)))))))
          (done)))))
