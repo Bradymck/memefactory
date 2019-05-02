@@ -51,17 +51,11 @@
 (defn reveal-vote [contract-addr {:keys [:address :vote-option :salt]} & [opts]]
   (contract-call (instance :meme contract-addr) :reveal-vote [(vote-option->num vote-option) salt] (merge {:gas 500000} opts)))
 
-(defn claim-vote-reward [contract-addr & [opts]]
-  (contract-call (instance :meme contract-addr) :claim-vote-reward [(:from opts)] (merge {:gas 500000} opts)))
+(defn claim-rewards [contract-addr & [opts]]
+  (contract-call (instance :meme contract-addr) :claim-rewards [(:from opts)] (merge {:gas 500000} opts)))
 
 (defn reclaim-vote-amount [contract-addr & [opts]]
   (contract-call (instance :meme contract-addr) :reclaim-vote-amount [(:from opts)] (merge {:gas 500000} opts)))
-
-(defn vote-reward [contract-addr voter-address]
-  (contract-call (instance :meme contract-addr) :vote-reward [voter-address]))
-
-(defn claim-challenge-reward [contract-addr & [opts]]
-  (contract-call (instance :meme contract-addr) :claim-challenge-reward [] (merge {:gas 500000} opts)))
 
 (defn load-registry-entry [contract-addr & [opts]]
   (contract-call (instance :meme contract-addr) :load [] (merge {:gas 500000} opts)))

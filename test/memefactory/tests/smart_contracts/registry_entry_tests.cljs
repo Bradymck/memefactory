@@ -314,11 +314,7 @@
              (is (<? (tx-error? (<? (reveal-vote1)))))))
          (done)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; TODO: Combine both tests into claim-rewards-test ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-#_(deftest claim-vote-reward-test
+(deftest claim-rewards
   (test/async
    done
    (async/go
@@ -352,21 +348,14 @@
                                               :salt (str salt)}
                                              {:from voter-addr}))]
 
-       (testing "Cannot be called before reveal period is over"
-         (is (thrown? js/Error (<? (registry-entry/claim-vote-reward registry-entry {:from voter-addr})))))
 
-       #_(web3-evm/increase-time! @web3 [(inc reveal-period-duration)])
+       (web3-evm/increase-time! @web3 [(inc reveal-period-duration)])
 
-       #_(let [balance-before-claim (<? (dank-token/balance-of voter-addr))
-             reward-claim #(registry-entry/claim-vote-reward registry-entry {:from voter-addr})
+       (let [balance-before-claim (<? (dank-token/balance-of voter-addr))
+             reward-claim #(registry-entry/claim-rewards registry-entry {:from voter-addr})
              reward-claim-tx (<? (reward-claim))
              balance-after-claim (<? (dank-token/balance-of voter-addr))
              entry (<! (load-registry-entry registry-entry))
-
-             {:keys [timestamp]} (->> reward-claim-tx
-                                      (registry/vote-reward-claimed-event-in-tx [:meme-registry :meme-registry-fwd])
-                                      :block-number
-                                      (web3-eth/get-block @web3))
 
              vote (<! (load-vote registry-entry voter-addr))]
 
@@ -374,79 +363,9 @@
            (is reward-claim-tx))
 
          (testing "Check properties of claimed vote"
-           (is (= (:vote/claimed-reward-on vote) timestamp))
-           (is (bn/> balance-after-claim balance-before-claim)))
-
-         (testing "Cannot be called twice"
-           (is (thrown? js/Error (reward-claim)))))
+           (is (bn/> balance-after-claim balance-before-claim))))
        (done)))))
 
-#_(deftest claim-challenge-reward-test
-    (test/async
-     done
-     (async/go
-       (try
-         (let [[voter-addr creator-addr challenger-addr] (web3-eth/accounts @web3)
-               [max-total-supply deposit challenge-period-duration
-                commit-period-duration reveal-period-duration max-auction-duration
-                vote-quorum challenge-dispensation]
-               (->> (<? (eternal-db/get-uint-values :meme-registry-db
-                                                 [:max-total-supply :deposit :challenge-period-duration
-                                                  :commit-period-duration :reveal-period-duration :max-auction-duration
-                                                  :vote-quorum :challenge-dispensation]))
-                    (map bn/number))
-               registry-entry (<! (create-meme creator-addr deposit max-total-supply sample-meta-hash-1))
-               _ (registry-entry/approve-and-create-challenge registry-entry
-                                                              {:amount deposit
-                                                               :meta-hash sample-meta-hash-1}
-                                                              {:from challenger-addr})
-               ;; TODO Fix test
-               {:keys [:reg-entry/address :challenge/commit-period-end]} (<! (load-registry-entry registry-entry))
-               vote-amount 10
-               salt "abc"
-               _ (registry-entry/approve-and-commit-vote registry-entry
-                                                         {:amount vote-amount
-                                                          :salt salt
-                                                          :vote-option :vote.option/vote-against}
-                                                         {:from voter-addr})
-               _ (web3-evm/increase-time! @web3 [(inc commit-period-duration)])
-               _ (registry-entry/reveal-vote registry-entry
-                                             {:address voter-addr
-                                              :vote-option :vote.option/vote-against
-                                              :salt (str salt)}
-                                             {:from voter-addr})
-               balance-before-claim (<? (dank-token/balance-of challenger-addr))]
-
-           (testing "Cannot be called before reveal period is over"
-             (is (thrown? js/Error (registry-entry/claim-challenge-reward registry-entry {}))))
-
-           (web3-evm/increase-time! @web3 [(inc challenge-period-duration)])
-           (web3-evm/mine! @web3)
-
-           (let [reward-claim #(registry-entry/claim-challenge-reward registry-entry {})
-                 reward-claim-tx (reward-claim)
-                 balance-after-claim (<? (dank-token/balance-of challenger-addr))
-                 ;; TODO Fix test
-                 entry (<! (load-registry-entry registry-entry))
-                 timestamp (-> reward-claim-tx
-                               registry/registry-entry-event-in-tx
-                               :args :timestamp
-                               bn/number)]
-
-             (testing "Challenge reward can be claimed under valid condidtions"
-               (is reward-claim-tx))
-
-             (testing "Check properties of claimed challenge"
-               (is (= (:challenge/claimed-reward-on entry) timestamp))
-               (is (bn/> balance-after-claim balance-before-claim)))
-
-             (testing "Cannot be called twice"
-               (is (thrown? js/Error (reward-claim)))))
-           (done))
-
-         (catch js/Error e
-           (println e)
-           (println (.-stack e)))))))
 
 (deftest reclaim-vote-amount-test
     (test/async
