@@ -48,17 +48,18 @@
     #_(log/info "Account balances now are " ::deploy-contracts-and-run-tests)
     #_(doseq [acc (web3-eth/accounts @web3)]
       (println (str "Balance of " acc " is " (<? (dank-token/balance-of acc)))))
-    #_(log/info "Running tests" ::deploy-contracts-and-run-tests)
+    (log/info "Running tests" ::deploy-contracts-and-run-tests)
     (cljs.test/run-tests
      'memefactory.tests.graphql-resolvers.graphql-resolvers-tests
      'memefactory.tests.smart-contracts.registry-entry-tests
+     'memefactory.tests.smart-contracts.meme-tests
      'memefactory.tests.smart-contracts.meme-auction-tests
      'memefactory.tests.smart-contracts.registry-tests
-     'memefactory.tests.smart-contracts.meme-tests
+
 
      #_'memefactory.tests.smart-contracts.param-change-tests
 
-)))
+     )))
 
 (defn deploy-contracts-and-run-tests
   "Redeploy smart contracts with truffle"
@@ -66,7 +67,10 @@
   (log/warn "Redeploying contracts, please be patient..." ::redeploy)
   (let [child (spawn "truffle migrate --network ganache --reset" (clj->js {:stdio "inherit" :shell true}))]
     (-> child
-        (.on "close" (fn [] (start-and-run-tests))))))
+        (.on "close" (fn []
+                       ;; Give it some time to write smart_contracts.cljs
+                       ;; if we remove the timeout, it start mount components while we still have the old smart_contract.cljs
+                       (js/setTimeout #(start-and-run-tests) 5000))))))
 
 (cljs-promises.async/extend-promises-as-pair-channels!)
 (deploy-contracts-and-run-tests)
