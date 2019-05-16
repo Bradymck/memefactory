@@ -10,10 +10,15 @@
   (contract-call :param-change-factory :create-param-change [creator db (cs/->camelCaseString key) value] (merge {:gas 700000} opts)))
 
 (defn create-param-change-data [{:keys [:creator :db :key :value] :as args}]
-  (web3-eth/contract-get-data (instance :param-change-factory) :create-param-change creator db (-> key (cs/->camelCaseString)) value))
+  (web3-eth/contract-get-data (look (instance :param-change-factory))
+                              :create-param-change
+                              (look creator)
+                              (look db)
+                              (look (-> key (cs/->camelCaseString)))
+                              (look value)))
 
 (defn approve-and-create-param-change [{:keys [:amount] :as args} & [opts]]
-  (dank-token/approve-and-call {:spender (contract-address :param-change-factory)
-                                :amount amount
-                                :extra-data (create-param-change-data (merge {:creator (:from opts)} args))}
+  (dank-token/approve-and-call (look {:spender (contract-address :param-change-factory)
+                                 :amount amount
+                                 :extra-data (create-param-change-data (merge {:creator (:from opts)} args))})
                                (merge {:gas 700000} opts)))
