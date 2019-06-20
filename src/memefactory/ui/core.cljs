@@ -47,6 +47,7 @@
    [memefactory.ui.my-settings.events :as my-settings-events]
    [memefactory.ui.my-settings.page]
    [memefactory.ui.privacy-policy.page]
+   [memefactory.ui.param-change.page]
    [memefactory.ui.subs]
    [memefactory.ui.terms.page]
    [mount.core :as mount]
